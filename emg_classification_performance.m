@@ -13,16 +13,14 @@ function emg_classification_performance
     % Create Tab Group
     tgroup = uitabgroup(f, 'Position', [0, 0.1, 1, 0.9]);
     tab1 = uitab(tgroup, 'Title', 'Model Comparison');
-    tab2 = uitab(tgroup, 'Title', 'Confusion Matrix (Best Model)');
+    tab2 = uitab(tgroup, 'Title', 'Confusion Matrices');
     tab3 = uitab(tgroup, 'Title', 'Learning Curves');
     
     % Axes for Tab 1 (Bar Chart)
     axBar = axes('Parent', tab1, 'Position', [0.15, 0.15, 0.7, 0.7]);
     title(axBar, 'Press "Run Analysis" to start...');
     
-    % Axes for Tab 2 (Confusion Matrix)
-    axConf = axes('Parent', tab2, 'Position', [0.1, 0.1, 0.8, 0.8]);
-    axis(axConf, 'off');
+    % Tab 2 will be populated dynamically with tiledlayout
     
     % Axes for Tab 3 (Learning Curve)
     axLearn = axes('Parent', tab3, 'Position', [0.1, 0.1, 0.8, 0.8]);
@@ -65,10 +63,13 @@ function emg_classification_performance
         cv = cvpartition(Y, 'KFold', k);
         
         waitbar(0.5, hWait, 'Training Classifiers...');
+        fprintf('--- Starting Cross-Validation Evaluation ---\n');
         
         for i = 1:length(classifiers)
             accSum = 0;
+            fprintf('Training Classifier: %s\n', classifiers{i});
             for j = 1:k
+                fprintf('  Fold %d/%d...\n', j, k);
                 trainIdx = training(cv, j);
                 testIdx = test(cv, j);
                 
@@ -83,6 +84,7 @@ function emg_classification_performance
                 accSum = accSum + sum(strcmp(YPred, YTest)) / length(YTest);
             end
             accuracies(i) = (accSum / k) * 100;
+            fprintf('  Accuracy for %s: %.2f%%\n', classifiers{i}, accuracies(i));
         end
         
         % 4. Update Bar Chart
@@ -98,10 +100,10 @@ function emg_classification_performance
                 'HorizontalAlignment', 'center', 'FontWeight', 'bold', 'FontSize', 12);
         end
         
-        % 5. Confusion Matrix for Best Model
+        % 5. Confusion Matrices for All Models
         [~, bestIdx] = max(accuracies);
         bestName = classifiers{bestIdx};
-        waitbar(0.7, hWait, ['Generating Confusion Matrix for ' bestName '...']);
+        waitbar(0.7, hWait, 'Generating Confusion Matrices...');
         
         % Train/Test Split for Visualization
         cvSplit = cvpartition(Y, 'HoldOut', 0.3);
@@ -110,15 +112,25 @@ function emg_classification_performance
         XTest = X(test(cvSplit), :);
         YTest = Y(test(cvSplit));
         
-        bestMdl = trainModel(bestName, XTrain, YTrain);
-        YPred = predict(bestMdl, XTest);
+        % Clear previous content in tab2
+        delete(tab2.Children);
         
-        % Clear previous confusion chart if any
-        cla(axConf);
-        confusionchart(axConf, YTest, YPred, 'Title', ['Confusion Matrix: ' bestName]);
+        % Create layout for multiple charts
+        t = tiledlayout(tab2, 1, 3, 'TileSpacing', 'compact', 'Padding', 'compact');
+        title(t, 'Confusion Matrices for All Models', 'FontSize', 14, 'FontWeight', 'bold');
+
+        for i = 1:length(classifiers)
+            modelName = classifiers{i};
+            mdl = trainModel(modelName, XTrain, YTrain);
+            YPred = predict(mdl, XTest);
+            
+            nexttile(t);
+            confusionchart(YTest, YPred, 'Title', modelName);
+        end
         
         % 6. Learning Curves
         waitbar(0.8, hWait, 'Generating Learning Curves...');
+        fprintf('--- Generating Learning Curves ---\n');
         cla(axLearn);
         hold(axLearn, 'on');
         colors = {'r', 'g', 'b'};
@@ -127,10 +139,12 @@ function emg_classification_performance
         trainSizes = [0.2, 0.4, 0.6, 0.8]; % Fractions of data to use for training
         
         for i = 1:length(classifiers)
+            fprintf('Processing Classifier: %s\n', classifiers{i});
             curveAcc = zeros(1, length(trainSizes));
             for t = 1:length(trainSizes)
                 % Use a subset of data
                 subsetSize = floor(trainSizes(t) * size(X, 1));
+                fprintf('  Training Size: %.0f%% (%d samples)\n', trainSizes(t)*100, subsetSize);
                 % Randomly select subset
                 randIdx = randperm(size(X, 1), subsetSize);
                 XSub = X(randIdx, :);
@@ -139,6 +153,7 @@ function emg_classification_performance
                 % 5-fold CV on this subset
                 if subsetSize < 10 % Too small
                     curveAcc(t) = 0; 
+                    fprintf('    Skipping (too small)\n');
                     continue;
                 end
                 
@@ -153,8 +168,10 @@ function emg_classification_performance
                         subAccSum = subAccSum + sum(strcmp(pred, YSub(teIdx))) / length(YSub(teIdx));
                     end
                     curveAcc(t) = (subAccSum / 5) * 100;
-                catch
+                    fprintf('    Accuracy: %.2f%%\n', curveAcc(t));
+                catch ME
                     curveAcc(t) = NaN;
+                    fprintf('    Error: %s\n', ME.message);
                 end
             end
             plot(axLearn, trainSizes*100, curveAcc, [colors{i} '-' markers{i}], ...
