@@ -1,4 +1,4 @@
-function emg_decision_boundary_viz
+function decision_boundary_viz
     % EMG_DECISION_BOUNDARY_VIZ
     % Visualizes decision boundaries for SVM, KNN, and Ensemble classifiers
     % in a 2D feature space (Mean RMS vs Mean Zero Crossing).

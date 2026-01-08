@@ -1,4 +1,4 @@
-function emg_gui
+function gui_show_all_raw
     % EMG_GUI - Graphical User Interface for visualizing EMG Data
     % Allows selection of Subject, Action Type, and Action Name.
     
