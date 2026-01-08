@@ -1,0 +1,106 @@
+function emg_upper_limb_analysis_2()
+% =====================================================
+% EMG Physical Action DataSet
+% Upper-Limb Feature Extraction
+% Normal vs Aggressive Actions
+% =====================================================
+
+%% -------------------------
+% Parameter settings
+% -------------------------
+basePath = 'EMG Physical Action Data Set - Del';   % 資料集主資料夾
+subs = {'sub1', 'sub2', 'sub3', 'sub4'};     % 受試者
+types = {'Normal', 'Aggressive'};            % 動作類型
+
+fs = 4000;                                   % Sampling frequency (Hz)
+targetChannels = 1:4;                        % 鎖定前 4 個通道 (上肢)
+
+win_len = 250;                               % window length (samples)
+overlap = 125;                               % 50% overlap
+step = win_len - overlap;
+
+featureTable = table();
+fprintf('Analyzing upper-limb EMG features (ch1–ch4)...\n');
+
+%% -------------------------
+% Band-pass filter design
+% -------------------------
+[b, a] = butter(4, [20 450] / (fs/2), 'bandpass');
+
+%% -------------------------
+% Main loop
+% -------------------------
+for s = 1:length(subs)
+    for t = 1:length(types)
+
+        dataPath = fullfile(basePath, subs{s}, types{t});
+        files = dir(fullfile(dataPath, '*.txt'));   % 視你的資料格式調整
+
+        for f = 1:length(files)
+
+            %% Load EMG data
+            filePath = fullfile(dataPath, files(f).name);
+            rawData = load(filePath);
+
+            % 只取上肢通道
+            emg = rawData(:, targetChannels);
+
+            %% Preprocessing
+            emg = emg - mean(emg);                   % DC removal
+            emg_filt = filtfilt(b, a, emg);          % Band-pass filter
+
+            %% Window segmentation
+            N = size(emg_filt, 1);
+            num_win = floor((N - win_len) / step) + 1;
+
+            %% Feature extraction
+            for i = 1:num_win
+
+                idx = (i-1)*step + 1 : (i-1)*step + win_len;
+                window = emg_filt(idx, :);
+
+                feat = [];
+
+                for ch = 1:length(targetChannels)
+                    x = window(:, ch);
+
+                    RMS = sqrt(mean(x.^2));
+                    MAV = mean(abs(x));
+                    WL  = sum(abs(diff(x)));
+                    VAR = var(x);
+                    ZC  = sum(x(1:end-1) .* x(2:end) < 0);
+
+                    feat = [feat RMS MAV WL VAR ZC];
+                end
+
+                %% Store into table
+                newRow = array2table(feat);
+                newRow.Subject = subs{s};
+                newRow.Type = types{t};
+                newRow.File = files(f).name;
+
+                featureTable = [featureTable; newRow];
+            end
+        end
+    end
+end
+
+%% -------------------------
+% Feature name assignment
+% -------------------------
+featureNames = {};
+featureList = {'RMS', 'MAV', 'WL', 'VAR', 'ZC'};
+
+for ch = 1:length(targetChannels)
+    for k = 1:length(featureList)
+        featureNames{end+1} = ...
+            sprintf('Ch%d_%s', targetChannels(ch), featureList{k});
+    end
+end
+
+featureTable.Properties.VariableNames(1:length(featureNames)) = featureNames;
+
+fprintf('Feature extraction completed.\n');
+fprintf('Total feature windows: %d\n', height(featureTable));
+
+end
