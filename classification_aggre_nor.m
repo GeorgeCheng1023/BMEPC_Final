@@ -51,6 +51,7 @@ X = zscore(X);
 
 % Train models
 folds = 5;
+rng(100);
 cv = cvpartition(Y, 'KFold', folds);
 
 fprintf('Training models...\n');
@@ -92,51 +93,43 @@ for f = 1:folds
     Xte = X(te, :);
     Yte = Y(te);
     
-    % SVM Linear
-    m1 = fitcsvm(Xtr, Ytr, 'KernelFunction', 'linear', 'Standardize', false);
-    [p1, sc1] = predict(m1, Xte);
-    [a1, s1, sp1] = calculate_metrics(Yte, p1);
+    % SVM Linear (Best: BoxConstraint=10)
+    [a1, s1, sp1, sc1, lbl1] = train_svm_linear(Xtr, Ytr, Xte, Yte, 'BoxConstraint', 10);
     svm_lin_acc = [svm_lin_acc; a1];
     svm_lin_sens = [svm_lin_sens; s1];
     svm_lin_spec = [svm_lin_spec; sp1];
-    svm_lin_scores = [svm_lin_scores; sc1(:, 2)];
-    svm_lin_labels = [svm_lin_labels; Yte];
+    svm_lin_scores = [svm_lin_scores; sc1];
+    svm_lin_labels = [svm_lin_labels; lbl1];
     
-    % SVM RBF
-    m2 = fitcsvm(Xtr, Ytr, 'KernelFunction', 'rbf', 'Standardize', false);
-    [p2, sc2] = predict(m2, Xte);
-    [a2, s2, sp2] = calculate_metrics(Yte, p2);
+    % SVM RBF (Best: BoxConstraint=10)
+    [a2, s2, sp2, sc2, lbl2] = train_svm_rbf(Xtr, Ytr, Xte, Yte, 'BoxConstraint', 10);
     svm_rbf_acc = [svm_rbf_acc; a2];
     svm_rbf_sens = [svm_rbf_sens; s2];
     svm_rbf_spec = [svm_rbf_spec; sp2];
-    svm_rbf_scores = [svm_rbf_scores; sc2(:, 2)];
-    svm_rbf_labels = [svm_rbf_labels; Yte];
+    svm_rbf_scores = [svm_rbf_scores; sc2];
+    svm_rbf_labels = [svm_rbf_labels; lbl2];
     
-    % k-NN
-    m3 = fitcknn(Xtr, Ytr, 'NumNeighbors', 5, 'Distance', 'euclidean');
-    [p3, sc3] = predict(m3, Xte);
-    [a3, s3, sp3] = calculate_metrics(Yte, p3);
+    % k-NN (Best: k=1)
+    [a3, s3, sp3, sc3, lbl3] = train_knn(Xtr, Ytr, Xte, Yte, 'NumNeighbors', 1);
     knn_acc = [knn_acc; a3];
     knn_sens = [knn_sens; s3];
     knn_spec = [knn_spec; sp3];
-    knn_scores = [knn_scores; sc3(:, 2)];
-    knn_labels = [knn_labels; Yte];
+    knn_scores = [knn_scores; sc3];
+    knn_labels = [knn_labels; lbl3];
     
-    % Decision Tree
-    m4 = fitctree(Xtr, Ytr);
-    [p4, sc4] = predict(m4, Xte);
-    [a4, s4, sp4] = calculate_metrics(Yte, p4);
+    % Decision Tree (Best: MinLeafSize=10)
+    [a4, s4, sp4, sc4, lbl4] = train_decision_tree(Xtr, Ytr, Xte, Yte, 'MinLeafSize', 10);
     tree_acc = [tree_acc; a4];
     tree_sens = [tree_sens; s4];
     tree_spec = [tree_spec; sp4];
-    tree_scores = [tree_scores; sc4(:, 2)];
-    tree_labels = [tree_labels; Yte];
+    tree_scores = [tree_scores; sc4];
+    tree_labels = [tree_labels; lbl4];
 end
 
 % Results
 fprintf('\n=== RESULTS ===\n\n');
 
-names = {'SVM (Linear)'; 'SVM (RBF)'; 'k-NN (k=5)'; 'Decision Tree'};
+names = {'SVM (Linear, C=10)'; 'SVM (RBF, C=10)'; 'k-NN (k=1)'; 'Decision Tree (ML=10)'};
 acc = [mean(svm_lin_acc)*100; mean(svm_rbf_acc)*100; mean(knn_acc)*100; mean(tree_acc)*100];
 sens = [mean(svm_lin_sens)*100; mean(svm_rbf_sens)*100; mean(knn_sens)*100; mean(tree_sens)*100];
 spec = [mean(svm_lin_spec)*100; mean(svm_rbf_spec)*100; mean(knn_spec)*100; mean(tree_spec)*100];
@@ -156,16 +149,16 @@ tg = uitabgroup(fig);
 % Tab 1: Confusion Matrices
 tab1 = uitab(tg, 'Title', 'Confusion Matrices');
 
-m1_all = fitcsvm(X, Y, 'KernelFunction', 'linear', 'Standardize', false);
+m1_all = fitcsvm(X, Y, 'KernelFunction', 'linear', 'Standardize', false, 'BoxConstraint', 10);
 p1_all = predict(m1_all, X);
 
-m2_all = fitcsvm(X, Y, 'KernelFunction', 'rbf', 'Standardize', false);
+m2_all = fitcsvm(X, Y, 'KernelFunction', 'rbf', 'Standardize', false, 'BoxConstraint', 10);
 p2_all = predict(m2_all, X);
 
-m3_all = fitcknn(X, Y, 'NumNeighbors', 5, 'Distance', 'euclidean');
+m3_all = fitcknn(X, Y, 'NumNeighbors', 1, 'Distance', 'euclidean');
 p3_all = predict(m3_all, X);
 
-m4_all = fitctree(X, Y);
+m4_all = fitctree(X, Y, 'MinLeafSize', 10);
 p4_all = predict(m4_all, X);
 
 subplot(2, 2, 1, 'Parent', tab1);
@@ -175,7 +168,7 @@ subplot(2, 2, 2, 'Parent', tab1);
 confusionchart(Y, p2_all, 'Title', 'SVM (RBF)', 'Normalization', 'row-normalized');
 
 subplot(2, 2, 3, 'Parent', tab1);
-confusionchart(Y, p3_all, 'Title', 'k-NN (k=5)', 'Normalization', 'row-normalized');
+confusionchart(Y, p3_all, 'Title', 'k-NN (k=1)', 'Normalization', 'row-normalized');
 
 subplot(2, 2, 4, 'Parent', tab1);
 confusionchart(Y, p4_all, 'Title', 'Decision Tree', 'Normalization', 'row-normalized');
@@ -204,12 +197,24 @@ grid(ax_roc, 'on');
 axis(ax_roc, 'square');
 hold(ax_roc, 'off');
 
-% Tab 3: Decision Boundary
-tab3 = uitab(tg, 'Title', 'Decision Boundary');
-ax_db = axes('Parent', tab3);
+% Tab 3: Metrics (Accuracy / Sensitivity / Specificity)
+tab3 = uitab(tg, 'Title', 'Metrics');
+ax_met = axes('Parent', tab3);
+metrics_mat = [acc sens spec];
+bar(ax_met, metrics_mat, 'LineWidth', 1.1);
+set(ax_met, 'XTickLabel', names, 'XTickLabelRotation', 15, 'FontSize', 11);
+legend(ax_met, {'Accuracy', 'Sensitivity', 'Specificity'}, 'Location', 'northoutside', 'Orientation', 'horizontal');
+ylabel(ax_met, 'Percentage (%)', 'FontSize', 12);
+title(ax_met, 'Cross-Validation Metrics', 'FontSize', 14);
+ylim(ax_met, [0 100]);
+grid(ax_met, 'on');
+
+% Tab 4: Decision Boundary
+tab4 = uitab(tg, 'Title', 'Decision Boundary');
+ax_db = axes('Parent', tab4);
 hold(ax_db, 'on');
 
-m_lin = fitcsvm(X, Y, 'KernelFunction', 'linear', 'Standardize', false);
+m_lin = fitcsvm(X, Y, 'KernelFunction', 'linear', 'Standardize', false, 'BoxConstraint', 10);
 
 Xviz = X(:, 1:2);
 
@@ -260,13 +265,3 @@ function feat = extract_features(data)
     end
 end
 
-function [a, s, sp] = calculate_metrics(true_y, pred_y)
-    tp = sum((true_y == 1) & (pred_y == 1));
-    tn = sum((true_y == 0) & (pred_y == 0));
-    fp = sum((true_y == 0) & (pred_y == 1));
-    fn = sum((true_y == 1) & (pred_y == 0));
-    
-    a = (tp + tn) / (tp + tn + fp + fn);
-    s = tp / (tp + fn);
-    sp = tn / (tn + fp);
-end
