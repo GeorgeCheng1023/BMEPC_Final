@@ -1,60 +1,51 @@
 function emg_upper_limb_analysis_3()
-% =====================================================
-% EMG Physical Action DataSet - Upper Limb Feature Extraction
-% 分析 Normal vs Aggressive 上肢動作
-% =====================================================
 
-%% -------------------------
-% 參數設定
-% -------------------------
-basePath = 'EMG Physical Action Data Set - Del';   % 資料集資料夾
-subs = {'sub1', 'sub2', 'sub3', 'sub4'};         % 受試者
-types = {'Normal', 'Aggressive'};                % 動作類型
 
-fs = 4000;                                       % 取樣頻率
-targetChannels = 1:4;                            % 上肢通道 (ch1-ch4)
-win_len = 250;                                   % window 長度 (samples)
-overlap = 125;                                   % 50% overlap
+
+basePath = 'EMG Physical Action Data Set - Del';  
+subs = {'sub1', 'sub2', 'sub3', 'sub4'};        
+types = {'Normal', 'Aggressive'};              
+
+fs = 4000;                                      
+targetChannels = 1:4;                            
+win_len = 250;                                   
+overlap = 125;                                
 step = win_len - overlap;
 
-featureTable = table();                           % 用來存特徵
-fprintf('正在分析上肢前 4 通道特徵...\n');
+featureTable = table();                          
+fprintf('Analysis...\n');
 
-% -------------------------
-% 帶通濾波設計 20-450 Hz
-% -------------------------
+
 [b, a] = butter(4, [20 450] / (fs/2), 'bandpass');
 
-%% -------------------------
-% 主迴圈 - 讀資料 & 特徵提取
-% -------------------------
+
 for t = 1:length(types)
     currentType = types{t};
     for s = 1:length(subs)
         currentSub = subs{s};
-        folderPath = fullfile(basePath, currentSub, currentType, 'txt'); % 你的資料資料夾結構
+        folderPath = fullfile(basePath, currentSub, currentType, 'txt'); 
         files = dir(fullfile(folderPath, '*.txt'));
         
         for k = 1:length(files)
             try
-                % 讀取資料 (N x 8)
+               
                 rawData = load(fullfile(files(k).folder, files(k).name));
                 
-                % 只取上肢通道
+                
                 data = rawData(:, targetChannels);
                 
-                % 預處理 - DC 移除 + 帶通濾波
+               
                 data = data - mean(data);
                 data_filt = filtfilt(b, a, data);
                 
-                % --- 特徵提取（對 4 個通道取平均，代表上肢整體特徵） ---
+           
                 f_rms = mean(sqrt(mean(data_filt.^2)));         % RMS
                 f_mav = mean(mean(abs(data_filt)));             % MAV
                 f_var = mean(var(data_filt));                   % VAR
                 f_zc  = mean(sum(diff(data_filt > 0) ~= 0));   % ZC
                 f_wl  = mean(sum(abs(diff(data_filt))));       % WL
                 
-                % 儲存到 Table
+               
                 newRow = table({currentSub}, {currentType}, f_rms, f_mav, f_var, f_zc, f_wl, ...
                     'VariableNames', {'Subject', 'Label', 'RMS', 'MAV', 'VAR', 'ZC', 'WL'});
                 

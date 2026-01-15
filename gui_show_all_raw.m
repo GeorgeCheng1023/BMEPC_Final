@@ -1,8 +1,5 @@
 function gui_show_all_raw
-    % EMG_GUI - Graphical User Interface for visualizing EMG Data
-    % Allows selection of Subject, Action Type, and Action Name.
-    
-    % Create the main figure window
+
     f = figure('Name', 'EMG Data Visualizer', ...
                'NumberTitle', 'off', ...
                'Position', [100, 100, 1200, 800], ...
@@ -10,7 +7,7 @@ function gui_show_all_raw
                'MenuBar', 'none', ...
                'ToolBar', 'figure');
 
-    % --- Control Panel (Top) ---
+
     panelHeight = 0.1;
     panelControl = uipanel(f, 'Position', [0, 1-panelHeight, 1, panelHeight], ...
                            'BackgroundColor', [0.94 0.94 0.94]);
@@ -53,36 +50,35 @@ function gui_show_all_raw
         'FontWeight', 'bold', 'FontSize', 11, ...
         'BackgroundColor', [0.8 0.9 1]);
 
-    % --- Plotting Panel (Bottom) ---
+
     panelPlot = uipanel(f, 'Position', [0, 0, 1, 1-panelHeight], ...
                         'BackgroundColor', 'w', 'BorderType', 'none');
 
-    % Define Lists
+
     normalActions = {'Bowing', 'Clapping', 'Handshaking', 'Hugging', 'Jumping', ...
                      'Running', 'Seating', 'Standing', 'Walking', 'Waving'};
     aggressiveActions = {'Elbowing', 'Frontkicking', 'Hamering', 'Headering', 'Kneeing', ...
                          'Pulling', 'Punching', 'Pushing', 'Sidekicking', 'Slapping'};
                      
-    % Initialize the UI
+
     updateActionList();
     
-    % --- Callback Functions ---
+
 
     function updateActionList(~, ~)
-        % Updates the Action Name dropdown based on selected Type
+
         val = comboType.Value;
         if val == 1 % Normal
             comboAction.String = normalActions;
         else % Aggressive
             comboAction.String = aggressiveActions;
         end
-        comboAction.Value = 1; % Reset selection to first item
+        comboAction.Value = 1; 
     end
 
     function plotData(~, ~)
-        % Main plotting logic
-        
-        % 1. Get User Selections
+
+   
         subIdx = comboSub.Value;
         subjects = comboSub.String;
         subName = subjects{subIdx};
@@ -95,18 +91,18 @@ function gui_show_all_raw
         actions = comboAction.String;
         actionName = actions{actionIdx};
         
-        % 2. Construct File Path
-        % Structure: EMG Physical Action Data Set/subX/Type/txt/Action.txt
+     
+     
         relativePath = fullfile('EMG Physical Action Data Set', subName, typeName, 'txt', [actionName, '.txt']);
         fullPath = fullfile(pwd, relativePath);
         
-        % 3. Validate File
+
         if ~isfile(fullPath)
             errordlg(['File not found: ', fullPath], 'File Error');
             return;
         end
         
-        % 4. Load Data
+       
         try
             data = load(fullPath);
         catch ME
@@ -120,15 +116,14 @@ function gui_show_all_raw
             warndlg(['Expected 8 channels, found ', num2str(numChannels)], 'Data Warning');
         end
         
-        % 5. Plotting
-        % Clear existing axes in the plot panel
+
         delete(allchild(panelPlot));
         
         t = 1:numSamples;
         channelLabels = {'Right Bicep', 'Right Tricep', 'Left Bicep', 'Left Tricep', ...
                          'Right Thigh', 'Right Hamstring', 'Left Thigh', 'Left Hamstring'};
         
-        % Create 8 subplots
+
         for i = 1:8
             ax = subplot(4, 2, i, 'Parent', panelPlot);
             plot(ax, t, data(:, i), 'b');
@@ -144,10 +139,7 @@ function gui_show_all_raw
             end
             ylabel(ax, 'uV');
         end
-        
-        % Add a main title using a text object at the top of the panel
-        % (sgtitle doesn't work easily with uipanel parent in older MATLAB versions, 
-        % so we use a text annotation or just rely on the window title)
+
         f.Name = sprintf('EMG Data Visualizer - %s | %s | %s', subName, typeName, actionName);
     end
 
